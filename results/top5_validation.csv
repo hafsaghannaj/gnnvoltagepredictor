@@ -1,0 +1,6 @@
+formula,predicted_voltage_V,dft_voltage_V,abs_error_V
+LiB(S2O7)2,4.423,N/A (novel),N/A
+LiPF6,4.367,N/A (novel),N/A
+LiSb(PO3)4,4.216,N/A (novel),N/A
+LiSb(PO3)4,4.212,N/A (novel),N/A
+LiSb(PO3)4,4.139,N/A (novel),N/A

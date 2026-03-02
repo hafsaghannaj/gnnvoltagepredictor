@@ -152,6 +152,32 @@ def structure_to_graph(structure: Structure, cutoff: float = 5.0,
                 num_nodes=len(structure))
 
 
+def fast_structure_to_graph(structure: Structure, cutoff: float = 5.0,
+                            n_gbf_bins: int = 64) -> Data:
+    """
+    Fast graph construction using vectorized distance cutoff (no CrystalNN).
+    Suitable for batch screening; uses structure.get_all_neighbors internally.
+    """
+    node_features = [get_atom_features(site.specie.symbol) for site in structure]
+    edge_src, edge_dst, edge_features = [], [], []
+
+    all_neighbors = structure.get_all_neighbors(cutoff, include_index=True)
+    for i, neighbors in enumerate(all_neighbors):
+        for nb in neighbors:
+            j = nb[2]
+            dist = nb[1]
+            edge_src.append(i)
+            edge_dst.append(j)
+            edge_features.append(gaussian_basis(dist, n_gbf_bins))
+
+    x = torch.tensor(node_features, dtype=torch.float32)
+    edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long) if edge_src else torch.zeros((2, 0), dtype=torch.long)
+    edge_attr = torch.tensor(edge_features, dtype=torch.float32) if edge_features else torch.zeros((0, n_gbf_bins), dtype=torch.float32)
+
+    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr,
+                num_nodes=len(structure))
+
+
 def get_chemistry_family(formula: str) -> str:
     """
     Classify a formula string into a broad chemistry family
