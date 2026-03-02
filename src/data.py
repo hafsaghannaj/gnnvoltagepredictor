@@ -13,8 +13,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import random_split
-from torch_geometric.data import Data, Dataset, InMemoryDataset
+from torch_geometric.data import Data
 from pymatgen.core import Structure
 
 from src.utils import structure_to_graph, get_chemistry_family, set_seed
@@ -31,26 +30,27 @@ def query_li_battery_data(api_key: str, save_path: Optional[str] = None,
 
     Returns a list of dicts with keys:
         battery_id, formula, average_voltage, capacity_grav, capacity_vol,
-        chemistry_family, charged_structure, discharged_structure, num_steps
+        chemistry_family, structure, num_steps
     """
+    import warnings
+    warnings.filterwarnings("ignore")
     from mp_api.client import MPRester
 
     print("Connecting to Materials Project API...")
     results = []
 
     with MPRester(api_key=api_key) as mpr:
-        electrode_docs = mpr.electrodes.search(
+        electrode_docs = mpr.materials.insertion_electrodes.search(
             working_ion="Li",
             fields=[
                 "battery_id",
+                "framework_formula",
                 "average_voltage",
                 "capacity_grav",
                 "capacity_vol",
-                "working_ion",
                 "num_steps",
                 "max_delta_volume",
-                "adj_pairs",
-                "framework_formula",
+                "host_structure",
             ],
         )
 
@@ -62,20 +62,12 @@ def query_li_battery_data(api_key: str, save_path: Optional[str] = None,
             if avg_v is None or avg_v <= 0 or avg_v > 6.0:
                 continue
 
-            formula = getattr(doc, "framework_formula", "Unknown")
-            chem_family = get_chemistry_family(formula)
-
-            adj_pairs = getattr(doc, "adj_pairs", [])
-            charged_struct = None
-            discharged_struct = None
-
-            if adj_pairs:
-                pair = adj_pairs[0]
-                charged_struct = getattr(pair, "charge_structure", None)
-                discharged_struct = getattr(pair, "insertion_structure", None)
-
-            if charged_struct is None and discharged_struct is None:
+            structure = getattr(doc, "host_structure", None)
+            if structure is None:
                 continue
+
+            formula = getattr(doc, "framework_formula", "Unknown") or "Unknown"
+            chem_family = get_chemistry_family(formula)
 
             entry = {
                 "battery_id": str(getattr(doc, "battery_id", "")),
@@ -86,12 +78,14 @@ def query_li_battery_data(api_key: str, save_path: Optional[str] = None,
                 "num_steps": int(getattr(doc, "num_steps", 1) or 1),
                 "max_delta_volume": float(getattr(doc, "max_delta_volume", 0) or 0),
                 "chemistry_family": chem_family,
-                "charged_structure": charged_struct.as_dict() if charged_struct else None,
-                "discharged_structure": discharged_struct.as_dict() if discharged_struct else None,
+                "structure": structure.as_dict(),
+                # Keep these keys for backward compat with graph dataset
+                "charged_structure": structure.as_dict(),
+                "discharged_structure": structure.as_dict(),
             }
             results.append(entry)
 
-        except Exception as e:
+        except Exception:
             continue
 
     print(f"Processed {len(results)} valid entries with voltages and structures.")
@@ -141,10 +135,10 @@ def split_dataset(entries: list[dict], train_frac: float = 0.80,
 # PyTorch Geometric Dataset
 # ---------------------------------------------------------------------------
 
-class VoltageGraphDataset(InMemoryDataset):
+class VoltageGraphDataset(torch.utils.data.Dataset):
     """
-    PyG InMemoryDataset that converts pymatgen structures to graphs and stores
-    the average voltage as the regression target.
+    Plain PyTorch Dataset that converts pymatgen structures to PyG graphs
+    and stores the average voltage as the regression target.
 
     Args:
         entries:     list of dicts from load_dataset / split_dataset
@@ -155,27 +149,24 @@ class VoltageGraphDataset(InMemoryDataset):
 
     def __init__(self, entries: list[dict], use_charged: bool = True,
                  cutoff: float = 5.0, n_gbf_bins: int = 64):
-        super().__init__(root=None)
-        self.entries = entries
-        self.use_charged = use_charged
         self.cutoff = cutoff
         self.n_gbf_bins = n_gbf_bins
-        self._data_list = self._process_entries()
-        self.data, self.slices = self.collate(self._data_list)
+        self._graphs = self._process_entries(entries, use_charged, cutoff, n_gbf_bins)
 
-    def _process_entries(self) -> list[Data]:
+    @staticmethod
+    def _process_entries(entries, use_charged, cutoff, n_gbf_bins) -> list[Data]:
         data_list = []
-        struct_key = "charged_structure" if self.use_charged else "discharged_structure"
+        struct_key = "charged_structure" if use_charged else "discharged_structure"
 
-        for entry in self.entries:
-            struct_dict = entry.get(struct_key)
+        for entry in entries:
+            struct_dict = entry.get(struct_key) or entry.get("structure")
             if struct_dict is None:
                 struct_dict = entry.get("discharged_structure") or entry.get("charged_structure")
             if struct_dict is None:
                 continue
             try:
                 structure = Structure.from_dict(struct_dict)
-                graph = structure_to_graph(structure, self.cutoff, self.n_gbf_bins)
+                graph = structure_to_graph(structure, cutoff, n_gbf_bins)
                 graph.y = torch.tensor([entry["average_voltage"]], dtype=torch.float32)
                 graph.battery_id = entry["battery_id"]
                 graph.formula = entry["formula"]
@@ -187,23 +178,22 @@ class VoltageGraphDataset(InMemoryDataset):
         print(f"Built {len(data_list)} graphs.")
         return data_list
 
-    def len(self) -> int:
-        return len(self._data_list)
+    def __len__(self) -> int:
+        return len(self._graphs)
 
-    def get(self, idx: int) -> Data:
-        return self._data_list[idx]
+    def __getitem__(self, idx: int) -> Data:
+        return self._graphs[idx]
 
     def save_processed(self, path: str) -> None:
         with open(path, "wb") as f:
-            pickle.dump(self._data_list, f)
+            pickle.dump(self._graphs, f)
 
     @classmethod
     def from_processed(cls, path: str) -> "VoltageGraphDataset":
         with open(path, "rb") as f:
-            data_list = pickle.load(f)
+            graphs = pickle.load(f)
         obj = cls.__new__(cls)
-        obj._data_list = data_list
-        obj.data, obj.slices = InMemoryDataset.collate(data_list)
+        obj._graphs = graphs
         return obj
 
 
