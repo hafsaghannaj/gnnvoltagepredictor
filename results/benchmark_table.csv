@@ -1,0 +1,4 @@
+Model,MAE (V),RMSE (V),R-squared
+CrystalTransformer,0.4236,0.6161,0.6225
+Random Forest,0.4475,0.6452,0.586
+CGCNN,0.46,0.6822,0.5372

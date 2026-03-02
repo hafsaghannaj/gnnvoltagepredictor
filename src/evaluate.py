@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, root_mean_squared_error
 
 # Publication style defaults
 matplotlib.rcParams.update({
@@ -52,7 +52,7 @@ PALETTE = {
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     """Compute MAE, RMSE, and R-squared."""
     mae = mean_absolute_error(y_true, y_pred)
-    rmse = mean_squared_error(y_true, y_pred, squared=False)
+    rmse = root_mean_squared_error(y_true, y_pred)
     r2 = r2_score(y_true, y_pred)
     return {"MAE": mae, "RMSE": rmse, "R2": r2}
 

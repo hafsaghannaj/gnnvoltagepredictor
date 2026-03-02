@@ -1,5 +1,5 @@
 """
-Model definitions: CGCNN (PyTorch Geometric) and M3GNet fine-tuning wrapper.
+Model definitions: CGCNN, CrystalTransformer (PyTorch Geometric), and M3GNet wrapper.
 """
 
 from __future__ import annotations
@@ -7,7 +7,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import CGConv, global_mean_pool, global_add_pool
+from torch_geometric.nn import CGConv, TransformerConv, global_mean_pool, global_add_pool
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +131,75 @@ class M3GNetVoltagePredictor(nn.Module):
     def forward(self, graph, lattice, state_attr):
         features = self.backbone.model(graph, lattice, state_attr)
         return self.regression_head(features).squeeze(-1)
+
+    def count_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+# ---------------------------------------------------------------------------
+# CrystalTransformer
+# ---------------------------------------------------------------------------
+
+class _BNWrapper(nn.Module):
+    """Thin wrapper so BatchNorm state keys nest as 'bns.i.module.*'."""
+
+    def __init__(self, num_features: int):
+        super().__init__()
+        self.module = nn.BatchNorm1d(num_features)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.module(x)
+
+
+class CrystalTransformer(nn.Module):
+    """
+    Graph Transformer for crystal property regression using TransformerConv layers.
+
+    Architecture:
+        1. Linear node embedding (node_dim -> hidden_dim)
+        2. n_conv TransformerConv layers with residual connections and BN
+        3. Global mean pooling
+        4. Two-layer MLP regression head
+    """
+
+    def __init__(self, node_dim: int = 9, edge_dim: int = 64,
+                 hidden_dim: int = 128, n_conv: int = 4,
+                 heads: int = 4, dropout: float = 0.1):
+        super().__init__()
+        assert hidden_dim % heads == 0, "hidden_dim must be divisible by heads"
+        head_dim = hidden_dim // heads
+
+        self.embed = nn.Linear(node_dim, hidden_dim)
+
+        self.convs = nn.ModuleList([
+            TransformerConv(hidden_dim, head_dim, heads=heads,
+                            edge_dim=edge_dim, concat=True)
+            for _ in range(n_conv)
+        ])
+        self.bns = nn.ModuleList([_BNWrapper(hidden_dim) for _ in range(n_conv)])
+
+        self.head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.SiLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, 1),
+        )
+
+    def forward(self, data) -> torch.Tensor:
+        x = self.embed(data.x)
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+        batch = data.batch
+
+        for conv, bn in zip(self.convs, self.bns):
+            residual = x
+            x = conv(x, edge_index, edge_attr)
+            x = F.silu(x)
+            x = x + residual
+            x = bn(x)
+
+        x = global_mean_pool(x, batch)
+        return self.head(x).squeeze(-1)
 
     def count_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
