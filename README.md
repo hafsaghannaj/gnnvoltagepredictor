@@ -1,58 +1,93 @@
 # GNN-Based Battery Voltage Predictor
 
-**Computational Chemistry Portfolio: Project 4 of 8**
+Computational Chemistry Portfolio: Project 4 of 8
 
-A graph neural network pipeline that predicts Li-ion intercalation voltages directly
-from crystal structures. The project benchmarks a CGCNN (trained from scratch), a
-fine-tuned M3GNet, and a random forest baseline against Materials Project
-experimental/DFT data, then screens novel Li-containing candidates for high-voltage
-battery applications.
+Predicts Li-ion intercalation voltage from crystal structures using graph-based ML models, then screens novel Li-containing materials for high-voltage candidates.
 
----
+## What's New (March 2026)
 
-## Results Summary
+- Updated data ingestion to use `mp_api` insertion-electrode host structures (`src/data.py`), with backward-compatible structure keys for downstream graph building.
+- Added and benchmarked a PyG `CrystalTransformer` model (`src/models.py`) alongside `CGCNN` and `Random Forest`.
+- Added expanded evaluation outputs in `results/fig04_*` plus `results/benchmark_table.csv`.
+- Added screening + ranking outputs for novel candidates in `results/screening_all.csv`, `results/top_candidates.csv`, and `results/top5_validation.csv`.
+- Added interactive deliverables in `results/fig_screening_interactive.html`, `results/fig_voltage_distribution_interactive.html`, and `results/dashboard.html`.
+- Updated environment baseline to Python 3.11 and relaxed several package pins in `environment.yml`.
+
+## Current Benchmark (Test Set)
+
+Source: `results/benchmark_table.csv`
 
 | Model | MAE (V) | RMSE (V) | R-squared |
-|---|---|---|---|
-| Random Forest | ~0.42 | ~0.58 | ~0.82 |
-| CGCNN (from scratch) | ~0.28 | ~0.38 | ~0.91 |
-| M3GNet (fine-tuned) | ~0.22 | ~0.31 | ~0.94 |
+|---|---:|---:|---:|
+| CrystalTransformer | 0.4236 | 0.6161 | 0.6225 |
+| Random Forest | 0.4475 | 0.6452 | 0.5860 |
+| CGCNN | 0.4600 | 0.6822 | 0.5372 |
 
-Top screening candidates: see `results/top_candidates.csv`
-Interactive dashboard: see `results/dashboard.html`
+## Top 5 Screened Candidates
 
----
+Source: `results/top_candidates.csv`
 
-## Project Structure
+| Rank | Material ID | Formula | Family | Predicted Voltage (V) |
+|---:|---|---|---|---:|
+| 1 | mp-1020060 | LiB(S2O7)2 | sulfate | 4.423 |
+| 2 | mp-9143 | LiPF6 | fluoride | 4.367 |
+| 3 | mp-759185 | LiSb(PO3)4 | phosphate | 4.216 |
+| 4 | mp-504353 | LiSb(PO3)4 | phosphate | 4.212 |
+| 5 | mp-504207 | LiSb(PO3)4 | phosphate | 4.139 |
 
-```
+## Repository Layout
+
+```text
 gnn-voltage-predictor/
-  README.md              Project overview and results
-  environment.yml        Conda environment specification
+  README.md
+  LICENSE
+  environment.yml
+  data/
+  models/
+    cgcnn_best.pt
+    cgcnn_history.json
+    rf_model.pkl
+    rf_config.json
+    transformer_best.pt
+    transformer_history.json
   notebooks/
-    01_data_collection.ipynb     Materials Project query and EDA
-    02_feature_engineering.ipynb Crystal graph construction and featurization
-    03_model_training.ipynb      RF baseline, CGCNN, M3GNet training
-    04_evaluation.ipynb          Metrics, parity plots, error analysis
-    05_screening.ipynb           Novel candidate inference and ranking
-    06_dashboard.ipynb           Interactive Plotly dashboard export
+    01_data_collection.ipynb
+    02_feature_engineering.ipynb
+    03_model_training.ipynb
+    04_evaluation.ipynb
+    05_screening.ipynb
+    06_dashboard.ipynb
   src/
-    __init__.py
-    data.py              Data loading, MP API queries, structure processing
-    models.py            CGCNN and model wrapper definitions
-    train.py             Training loops, early stopping, LR scheduling
-    evaluate.py          Metrics computation and publication plots
-    utils.py             Atom featurization, graph construction, helpers
-  data/                  Raw and processed datasets (gitignored after download)
-  models/                Saved model weights and training configs
-  results/               Output figures, CSVs, and the HTML dashboard
+    data.py
+    models.py
+    train.py
+    evaluate.py
+    utils.py
+  results/
+    benchmark_table.csv
+    fig01_*.png
+    fig04_*.png
+    fig05_*.png
+    screening_all.csv
+    top_candidates.csv
+    top5_validation.csv
+    fig_screening_interactive.html
+    fig_voltage_distribution_interactive.html
+    dashboard.html
 ```
 
----
+## Pipeline
 
-## Quickstart
+1. Collect Li insertion electrode data from Materials Project.
+2. Convert host structures to crystal graphs.
+3. Train voltage predictors (RF, CGCNN, CrystalTransformer).
+4. Evaluate on held-out test set with parity/error diagnostics.
+5. Screen novel Li-containing structures and rank candidates.
+6. Export static figures and interactive dashboard artifacts.
 
-### 1. Create the conda environment
+## Quick Start
+
+### 1. Create environment
 
 ```bash
 conda env create -f environment.yml
@@ -60,13 +95,11 @@ conda activate gnn-battery
 python -m ipykernel install --user --name gnn-battery --display-name "gnn-battery"
 ```
 
-### 2. Set your Materials Project API key
+### 2. Set Materials Project API key
 
 ```bash
 export MP_API_KEY="your_key_here"
 ```
-
-Get a free key at: https://materialsproject.org/api
 
 ### 3. Run notebooks in order
 
@@ -74,88 +107,23 @@ Get a free key at: https://materialsproject.org/api
 jupyter lab
 ```
 
-Open and run notebooks 01 through 06 sequentially. Each notebook saves
-intermediate outputs so later notebooks can load them without re-running earlier steps.
+Run notebooks `01` through `06` sequentially.
 
-### 4. View the dashboard
+### 4. Open interactive outputs
 
 ```bash
 open results/dashboard.html
+open results/fig_screening_interactive.html
+open results/fig_voltage_distribution_interactive.html
 ```
 
----
+## Notes
 
-## Methodology
-
-### Data
-
-Battery electrode entries are queried from the Materials Project using
-the `mp-api` Python client. Each entry represents a Li insertion electrode
-with a known average voltage (computed from DFT total energies via the
-reaction energy formula). The dataset includes oxides, phosphates, sulfides,
-and other chemistry families. Entries are split 80/10/10 into train, validation,
-and test sets, stratified by chemistry family to ensure each split contains
-representative examples from every class.
-
-### Graph Representation
-
-Crystal structures are converted to graphs using a neighbor-finding cutoff of 5.0
-Angstroms. Nodes represent atomic sites; edges represent bonds within the cutoff.
-
-Node features (per atom):
-- Atomic number (normalized)
-- Pauling electronegativity
-- Ionic radius (angstroms)
-- Group and period number
-- Oxidation state (where available)
-
-Edge features (per bond):
-- Interatomic distance (angstroms)
-- Distance encoded via Gaussian basis expansion (64 bins, 0.5 to 5.0 A)
-
-### Models
-
-**Random Forest**: Matminer compositional descriptors (ElementProperty, IonProperty)
-plus structural descriptors (SiteStatsFingerprint). Serves as an interpretable baseline.
-
-**CGCNN**: Crystal Graph Convolutional Neural Network implemented using
-PyTorch Geometric CGConv layers. Four convolutional layers with batch normalization,
-followed by global mean pooling and a two-layer MLP head.
-
-**M3GNet**: Many-body 3-body Graph Network pretrained on the Materials Project
-PES dataset (matgl library). Fine-tuned for voltage regression by replacing the
-output head and training on the battery dataset with a lower learning rate.
-
-### Screening
-
-Novel Li-containing structures are queried from the Materials Project with
-`e_above_hull < 0.05 eV/atom` (thermodynamic stability filter) and no existing
-voltage calculations. The best performing model runs inference on all candidates;
-results are ranked by predicted voltage and filtered by stability.
-
----
-
-## Hardware
-
-Developed and benchmarked on:
-- GPU: NVIDIA RTX 5070 Ti (CUDA 12.x)
-- RAM: 32 GB
-
-CGCNN training: approximately 15 minutes on GPU
-M3GNet fine-tuning: approximately 30 minutes on GPU
-
----
-
-## Dependencies
-
-Core: PyTorch 2.2, PyTorch Geometric 2.5, pymatgen, matgl, mp-api, matminer
-See `environment.yml` for pinned versions.
-
----
+- The repository includes model artifacts and generated results so outputs are immediately inspectable.
+- Screening predictions are model-based estimates; prioritize DFT/experimental validation before synthesis decisions.
 
 ## Citation
 
 If you use this project, please cite the Materials Project:
 
-Jain, A. et al. Commentary: The Materials Project: A materials genome approach
-to accelerating materials innovation. APL Materials 1, 011002 (2013).
+Jain, A. et al. (2013). The Materials Project: A materials genome approach to accelerating materials innovation. *APL Materials*, 1, 011002.
