@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data and model files (large)
+data/*.json
+data/*.pkl
+data/*.csv
+models/*.pt
+models/*.pth
+models/*.ckpt
+
+# Keep directory structure
+!data/.gitkeep
+!models/.gitkeep
+!results/.gitkeep
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# API keys
+.env
+secrets.yaml
+api_keys.yaml
