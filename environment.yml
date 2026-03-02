@@ -28,3 +28,4 @@ dependencies:
     - matminer>=0.9.0
     - dgl>=2.0.0
     - monty>=2024.2.2
+    - captum>=0.7.0

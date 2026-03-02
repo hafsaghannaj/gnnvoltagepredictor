@@ -11,6 +11,7 @@ Predicts Li-ion intercalation voltage from crystal structures using graph-based 
 - Added expanded evaluation outputs in `results/fig04_*` plus `results/benchmark_table.csv`.
 - Added screening + ranking outputs for novel candidates in `results/screening_all.csv`, `results/top_candidates.csv`, and `results/top5_validation.csv`.
 - Added interactive deliverables in `results/fig_screening_interactive.html`, `results/fig_voltage_distribution_interactive.html`, and `results/dashboard.html`.
+- Added Captum-based graph explainability tools (`src/explain.py`) plus a runnable single-prediction attribution script (`scripts/explain_single_prediction.py`).
 - Updated environment baseline to Python 3.11 and relaxed several package pins in `environment.yml`.
 
 ## Current Benchmark (Test Set)
@@ -63,6 +64,9 @@ gnn-voltage-predictor/
     train.py
     evaluate.py
     utils.py
+    explain.py
+  scripts/
+    explain_single_prediction.py
   results/
     benchmark_table.csv
     fig01_*.png
@@ -116,6 +120,25 @@ open results/dashboard.html
 open results/fig_screening_interactive.html
 open results/fig_voltage_distribution_interactive.html
 ```
+
+## Explainability (Single Prediction)
+
+Use Captum Integrated Gradients (`ig`) or SHAP-like GradientShap (`gradient_shap`)
+to attribute one graph prediction and identify the most influential atoms.
+
+```bash
+python scripts/explain_single_prediction.py \
+  --model transformer \
+  --method ig \
+  --graph-index 0 \
+  --top-k 10
+```
+
+Outputs are saved to `results/`, including:
+
+- top-atom bar plot (`*_top_atoms.png`)
+- 3D atom influence map (`*_structure_3d.png`, when structure metadata is available)
+- full attribution payload (`*.json`)
 
 ## Notes
 
