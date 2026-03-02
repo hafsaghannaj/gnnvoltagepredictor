@@ -1,0 +1,11 @@
+{
+  "best_params": {
+    "n_estimators": 500,
+    "min_samples_leaf": 2,
+    "max_features": 0.5,
+    "max_depth": 20
+  },
+  "cv_mae": 0.5220276726364587,
+  "val_mae": 0.2798319614018248,
+  "test_mae": 0.4474532037612808
+}

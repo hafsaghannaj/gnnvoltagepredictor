@@ -141,7 +141,7 @@ def train_cgcnn(
     criterion = nn.L1Loss()  # MAE loss
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=lr_factor,
-                                   patience=lr_patience, verbose=verbose)
+                                   patience=lr_patience)
     early_stopper = EarlyStopping(patience=patience)
 
     history = {"train_loss": [], "val_loss": [], "lr": []}
