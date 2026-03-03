@@ -10,7 +10,7 @@ Predicts Li-ion intercalation voltage from crystal structures using graph-based 
 - Added and benchmarked a PyG `CrystalTransformer` model (`src/models.py`) alongside `CGCNN` and `Random Forest`.
 - Added expanded evaluation outputs in `results/fig04_*` plus `results/benchmark_table.csv`.
 - Added screening + ranking outputs for novel candidates in `results/screening_all.csv`, `results/top_candidates.csv`, and `results/top5_validation.csv`.
-- Added interactive deliverables in `results/fig_screening_interactive.html`, `results/fig_voltage_distribution_interactive.html`, and `results/dashboard.html`.
+- Added interactive deliverables in `fig_screening_interactive.html`, `fig_voltage_distribution_interactive.html`, and `dashboard.html` (repo root for GitHub Pages).
 - Added Captum-based graph explainability tools (`src/explain.py`) plus a runnable single-prediction attribution script (`scripts/explain_single_prediction.py`).
 - Updated environment baseline to Python 3.11 and relaxed several package pins in `environment.yml`.
 
@@ -43,6 +43,9 @@ gnn-voltage-predictor/
   README.md
   LICENSE
   environment.yml
+  dashboard.html
+  fig_screening_interactive.html
+  fig_voltage_distribution_interactive.html
   data/
   models/
     cgcnn_best.pt
@@ -75,9 +78,6 @@ gnn-voltage-predictor/
     screening_all.csv
     top_candidates.csv
     top5_validation.csv
-    fig_screening_interactive.html
-    fig_voltage_distribution_interactive.html
-    dashboard.html
 ```
 
 ## Pipeline
@@ -116,9 +116,9 @@ Run notebooks `01` through `06` sequentially.
 ### 4. Open interactive outputs
 
 ```bash
-open results/dashboard.html
-open results/fig_screening_interactive.html
-open results/fig_voltage_distribution_interactive.html
+open dashboard.html
+open fig_screening_interactive.html
+open fig_voltage_distribution_interactive.html
 ```
 
 ## Explainability (Single Prediction)
