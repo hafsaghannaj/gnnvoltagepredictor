@@ -1,7 +1,5 @@
 # GNN-Based Battery Voltage Predictor
 
-Computational Chemistry Portfolio: Project 4 of 8
-
 Predicts Li-ion intercalation voltage from crystal structures using graph-based ML models, then screens novel Li-containing materials for high-voltage candidates.
 
 ## What's New (March 2026)
